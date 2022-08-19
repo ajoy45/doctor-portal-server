@@ -20,26 +20,54 @@ async function run() {
   try {
     await client.connect()
     const serviceCollection = client.db('doctor_portal').collection('services');
-    const bookingCollection = client.db('doctor_portal').collection('booking')
+    const bookingCollection = client.db('doctor_portal').collection('booking');
+    const userCollection = client.db('doctor_portal').collection('users');
 
     app.get('/service', async (req, res) => {
       const service = serviceCollection.find({})
       const result = await service.toArray()
       res.send(result)
     })
-    app.post('/login', (req, res) => {
-      const email = req.body;
-      // console.log(email)
-      const token = jwt.sign(email, process.env.ACCES_TOKEN);
-      // console.log(token)
-      res.send({ token })
+    // app.post('/login', (req, res) => {
+    //   const email = req.body;
+    //   // console.log(email)
+    //   const token = jwt.sign(email, process.env.ACCES_TOKEN);
+    //   // console.log(token)
+    //   res.send({ token })
 
+    // })
+
+    app.put('/user/:email',async(req,res)=>{
+      const email=req.params.email;
+      const filter = {email:email};
+      const user=req.body;
+      
+      const options = { upsert: true };
+      const updateDoc = {
+        $set: user,
+      };
+      const result = await userCollection.updateOne(filter, updateDoc, options);
+      const token = jwt.sign(email, process.env.ACCES_TOKEN);
+      res.send({result,token})
+    })
+    app.get('/users',async(req,res)=>{
+      const users=await userCollection.find().toArray();
+      res.send(users)
     })
     app.get('/booking',async(req,res)=>{
       const patient=req.query.patient;
+      const tokenInfo=req.headers.authorization;
+      // console.log(tokenInfo)
+      const [bearer,accestoken]=tokenInfo.split(' ');
+      // console.log(accestoken)
       const query={patient:patient};
-      const booking=await bookingCollection.find(query).toArray();
-      res.send(booking)
+      const decoded = jwt.verify(accestoken, process.env.ACCES_TOKEN);
+      console.log(decoded)
+      if(decoded){
+        const booking=await bookingCollection.find(query).toArray();
+        res.send(booking)
+      }
+    
     })
     app.post('/booking', async (req, res) => {
       const data = req.body;
@@ -50,10 +78,11 @@ async function run() {
       //  console.log(tokenInfo)
       const [email, accesToken] = tokenInfo?.split(' ')
       const decoded = jwt.verify(accesToken, process.env.ACCES_TOKEN);
+      // console.log(decoded)
       if (exists) {
         return res.send({ succces: false, booking: exists })
       }
-      if (decoded.email === email) {
+      if (decoded === email) {
         const result = await bookingCollection.insertOne(data);
         res.send({ success: true, result })
       }
